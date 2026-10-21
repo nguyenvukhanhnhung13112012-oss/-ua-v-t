@@ -1,1 +1,267 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trò Chơi Đua Vịt Super Duck Race</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
+        body {
+            background: linear-gradient(135deg, #74ebe5, #89f7fe);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        input, button {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #ff9f43;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background-color: #ee5253;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .track-container {
+            width: 100%;
+            max-width: 900px;
+            background: #48dbfb;
+            border: 4px solid #2e86de;
+            border-radius: 12px;
+            padding: 20px 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .finish-line {
+            position: absolute;
+            right: 80px;
+            top: 0;
+            bottom: 0;
+            width: 10px;
+            background: repeating-linear-gradient(
+                0deg,
+                #000,
+                #000 10px,
+                #fff 10px,
+                #fff 20px
+            );
+            z-index: 1;
+        }
+
+        .lane {
+            height: 60px;
+            border-bottom: 2px dashed rgba(255, 255, 255, 0.6);
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .lane:last-child {
+            border-bottom: none;
+        }
+
+        .duck {
+            position: absolute;
+            left: 10px;
+            font-size: 35px;
+            transition: left 0.2s linear;
+            user-select: none;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .duck-name {
+            font-size: 12px;
+            background: rgba(255,255,255,0.8);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+            color: #333;
+            white-space: nowrap;
+        }
+
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            text-align: center;
+            z-index: 10;
+        }
+
+        .popup h2 {
+            color: #10ac84;
+            margin-bottom: 10px;
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🦆 Cuộc Đua Vịt Kỳ Thú 🦆</h1>
+
+    <div class="controls">
+        <label for="duckNames">Tên các chú vịt (phân cách bằng dấu phẩy):</label>
+        <input type="text" id="duckNames" value="Vịt Vàng, Vịt Xanh, Vịt Béo, Vịt Siêu Tốc" style="width: 300px;">
+        <button id="startBtn" onclick="startRace()">Bắt Đầu Đua!</button>
+    </div>
+
+    <div class="track-container" id="track">
+        <div class="finish-line"></div>
+        <!-- Các làn đua sẽ được tạo tự động bằng JS -->
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+    <div class="popup" id="popup">
+        <h2>🎉 CHÚC MỪNG VÔ ĐỊCH! 🎉</h2>
+        <p id="winnerMsg" style="font-size: 20px; font-weight: bold; margin: 15px 0;"></p>
+        <button onclick="closePopup()">Đua Lại</button>
+    </div>
+
+    <script>
+        const duckEmojis = ['🦆', '🐥', '🐣', '🐤'];
+        let raceInterval;
+
+        function renderLanes() {
+            const track = document.getElementById('track');
+            const finishLine = track.querySelector('.finish-line');
+            track.innerHTML = '';
+            track.appendChild(finishLine);
+
+            const namesInput = document.getElementById('duckNames').value;
+            const names = namesInput.split(',').map(n => n.trim()).filter(n => n.length > 0);
+
+            names.forEach((name, index) => {
+                const lane = document.createElement('div');
+                lane.className = 'lane';
+
+                const duck = document.createElement('div');
+                duck.className = 'duck';
+                duck.id = `duck-${index}`;
+
+                const emoji = duckEmojis[index % duckEmojis.length];
+                duck.innerHTML = `<span>${emoji}</span><span class="duck-name">${name}</span>`;
+
+                lane.appendChild(duck);
+                track.appendChild(lane);
+            });
+        }
+
+        function startRace() {
+            renderLanes();
+
+            const namesInput = document.getElementById('duckNames').value;
+            const names = namesInput.split(',').map(n => n.trim()).filter(n => n.length > 0);
+            
+            if (names.length === 0) {
+                alert('Vui lòng nhập ít nhất 1 chú vịt!');
+                return;
+            }
+
+            document.getElementById('startBtn').disabled = true;
+
+            const trackWidth = document.getElementById('track').clientWidth - 120; 
+            const duckPositions = new Array(names.length).fill(10);
+            let winner = null;
+
+            raceInterval = setInterval(() => {
+                for (let i = 0; i < names.length; i++) {
+                    // Mỗi chú vịt tiến lên một khoảng ngẫu nhiên từ 2 đến 12px
+                    const speed = Math.random() * 10 + 2;
+                    duckPositions[i] += speed;
+
+                    const duckEl = document.getElementById(`duck-${i}`);
+                    if (duckEl) {
+                        duckEl.style.left = duckPositions[i] + 'px';
+                    }
+
+                    // Kiểm tra vịt về đích
+                    if (duckPositions[i] >= trackWidth && !winner) {
+                        winner = names[i];
+                        clearInterval(raceInterval);
+                        setTimeout(() => showWinner(winner), 300);
+                        break;
+                    }
+                }
+            }, 100);
+        }
+
+        function showWinner(winnerName) {
+            document.getElementById('winnerMsg').innerText = `🏆 ${winnerName} đã chiến thắng! 🏆`;
+            document.getElementById('popup').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+        }
+
+        function closePopup() {
+            document.getElementById('popup').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('startBtn').disabled = false;
+            renderLanes();
+        }
+
+        // Tải danh sách làn đua mặc định ban đầu
+        window.onload = renderLanes;
+    </script>
+</body>
+</html>
